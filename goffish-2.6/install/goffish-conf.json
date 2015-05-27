@@ -1,0 +1,33 @@
+
+{
+	"machines" :{
+		"headnode": {
+				"id" : "node1",
+				"address" : "localhost"
+			},
+		"nodes" : [
+			{
+				"id" : "node1",
+				"address" : "localhost"
+			}
+		]
+	},
+	"username" : {
+		"default" : "ravikant"
+	},
+	"paths" : {
+		"default" : {
+			"source" : "/home/ravikant/soft/goffish-deploy/source",
+			"bin" : "/home/ravikant/soft/goffish-deploy/bin",
+			"data" : "/home/ravikant/soft/goffish-deploy/data",
+			"client" : "/home/ravikant/soft/goffish-deploy/client",
+			"config" : "/home/ravikant/soft/goffish-deploy/config",
+			"sample" : "/home/ravikant/soft/goffish-deploy/sample"
+		}
+	},
+	"common-home" : "true",
+	"source" :{
+		"type" : "file",
+		"url" : "~/soft/goffish-2.6/"
+	}
+}

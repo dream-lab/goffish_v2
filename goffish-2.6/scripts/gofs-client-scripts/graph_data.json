@@ -1,0 +1,8 @@
+{
+	"graph_folder" : "$GOFFISH_SAMPLE/gofs-graphs/fbin.txt",
+	"graph_id" : "fbgraph",
+	"number_of_instances" : "0",
+	"subgraph_bin_packing" : "10",
+	"temporal_bin_packing" : "10",
+	"graph_index_file" : "namenode.txt"
+}

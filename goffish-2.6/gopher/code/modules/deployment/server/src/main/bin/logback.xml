@@ -1,0 +1,52 @@
+<!-- 
+	<dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>1.1.2</version>
+    </dependency>
+	
+-Dlogback.configurationFile=/path/to/logback.xml -->
+<configuration scan="false"> 
+
+  <appender name="DEFAULT_FILE" class="ch.qos.logback.core.FileAppender"> 
+	<file>container.log</file>
+	<encoder>
+		<pattern>%d %-5level [%thread] %logger{0}: %msg%n</pattern>
+		<immediateFlush>true</immediateFlush>
+	</encoder> 
+  </appender>
+  <appender name="SG_FILE" class="ch.qos.logback.core.FileAppender"> 
+	<file>subgraph.log</file>
+	<encoder>
+		<pattern>%msg%n</pattern>
+		<immediateFlush>true</immediateFlush>
+	</encoder> 
+  </appender>
+  <appender name="PART_FILE" class="ch.qos.logback.core.FileAppender"> 
+	<file>partition.log</file>
+	<encoder>
+		<pattern>%msg%n</pattern>
+		<immediateFlush>true</immediateFlush>
+	</encoder> 
+  </appender>
+  <appender name="GRAPH_FILE" class="ch.qos.logback.core.FileAppender"> 
+	<file>graph.log</file>
+	<encoder>
+		<pattern>%msg%n</pattern>
+		<immediateFlush>true</immediateFlush>
+	</encoder> 
+  </appender>
+  
+  <logger name="SubGraphLogger" level="TRACE">
+      <appender-ref ref="SG_FILE" />
+  </logger>
+  <logger name="PartitionLogger" level="TRACE">
+      <appender-ref ref="PART_FILE" />
+  </logger>
+  <logger name="GraphLogger" level="TRACE">
+      <appender-ref ref="GRAPH_FILE" />
+  </logger>
+  <root level="TRACE">
+    <appender-ref ref="DEFAULT_FILE" />
+  </root>
+</configuration>

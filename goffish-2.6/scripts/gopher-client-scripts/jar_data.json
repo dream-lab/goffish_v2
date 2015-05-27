@@ -1,0 +1,7 @@
+{
+	"jar_path" : "$GOFFISH_SAMPLE/gopher-apps/vert-count-2.6.jar",
+	"class_path" : "edu.usc.pgroup.goffish.gopher.sample.VertCounter",
+	"graph_id" : "fbgraph",
+	"araguments" : "NILL" ,
+	"iterations" : "0"
+}

@@ -1,0 +1,59 @@
+This document describes steps which can be used for inital deployment of goffish on a cluter
+
+Background information 
+-----------
+
+Goffish is graph framework which runs graph algorithm on ditributed system
+
+Goffish has two parts
+GoFS: Goffish file system
+Gopher : Goffish execution engine
+
+Refer [1] for more detailed information
+
+[1] Yogesh Simmhan, Alok Kumbhare, Charith Wickramaarachchi, Soonil Nagarkar, Santosh Ravi, Cauligi Raghavendra and Viktor Prasanna, GoFFish: A Sub-Graph Centric Framework for Large-Scale Graph Analytics, International European Conference on Parallel Processing (EuroPar)
+
+Prerequisite
+--------------
+One of the machine in gofish gluster act as head node, other nodes are refered as worker node. Also head node may or mmay not act as worker node
+
+All machines in goffish cluster should be able to do password less ssh amonng each other
+
+Following software should be installed in goffish head nodes
+Java 1.7+
+Maven 3.0+
+cmake 2.7+
+metis 
+python 2.7+
+
+Following softwares need to be installed in worker nodes
+Java 1.7+
+
+Quick steps to install goffish
+------------------------------
+
+1) Deployment
+Refer to the install folder. Install folder contains Readme-install.txt which gives information about deploying Goffish across set of machine (or a single machine) using the script file goffish_install.py
+
+2) Overview of Deployed system
+
+Goffish deployment will create set of folder s across machine details of which are given below
+
+source : This folder will contain the source files for goffish (It is only neeed for head node)
+client : This folder wiil contain all the scripts the user will need to interact with goffish (It is only neeed for head node) 
+sample : This folder contains one sample graph in gml format and few jar that can be run on goffish (It is only neeed for head node) 
+bin: This folder will contain the binary files and jars needed for running goffish (It is needed for all nodes)
+data : This folder contains Goffish file system data (It is needed for all nodes)
+
+3) Loading sample graph in Gofs
+
+In the deployed goffish go to  client/gofs-client folder in head node
+There you can refer to Readme-gofs.txt to get informaion about loading graph in gofs
+
+4) Running sample Gopher job
+
+In the deployed goffish go to client/gopher-client folder in head node
+There you can refer to Readme-gopher.txt to get information about running a gopher job
+
+
+

@@ -1,0 +1,1360 @@
+diff -Naur --exclude='.*' goffish-2.6/gopher/code/modules/api/pom.xml ravi/Goffish2.6/gopher/code/modules/api/pom.xml
+--- goffish-2.6/gopher/code/modules/api/pom.xml	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/gopher/code/modules/api/pom.xml	2015-03-23 19:58:50.000000000 +0530
+@@ -38,6 +38,7 @@
+     <packaging>jar</packaging>
+ 
+     <properties>
++		<slf4jVersion>1.7.10</slf4jVersion>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+     </properties>
+ 
+@@ -89,6 +90,21 @@
+             <version>3.8.1</version>
+             <scope>test</scope>
+         </dependency>
++       <!--    <dependency>
++				<groupId>org.slf4j</groupId>
++				<artifactId>slf4j-api</artifactId>
++				<version>${slf4jVersion}</version>
++			</dependency>
++			<dependency>
++				<groupId>org.slf4j</groupId>
++				<artifactId>slf4j-simple</artifactId>
++				<version>${slf4jVersion}</version>
++			</dependency>
++				<dependency>
++        <groupId>ch.qos.logback</groupId>
++        <artifactId>logback-classic</artifactId>
++        <version>1.1.2</version>
++    </dependency>-->
+             <dependency>
+                 <groupId>edu.usc.goffish.gofs</groupId>
+                 <artifactId>gofs-api</artifactId>
+@@ -99,6 +115,16 @@
+             <artifactId>gofs-core</artifactId>
+             <version>2.6</version>
+         </dependency>
++        <dependency>
++        	<groupId>org.slf4j</groupId>
++        	<artifactId>slf4j-api</artifactId>
++        	<version>${slf4jVersion}</version>
++        </dependency>
++        <dependency>
++        	<groupId>ch.qos.logback</groupId>
++        	<artifactId>logback-classic</artifactId>
++        	<version>1.1.2</version>
++        </dependency>
+     </dependencies>
+ 
+ 
+diff -Naur --exclude='.*' goffish-2.6/gopher/code/modules/api/src/main/java/edu/usc/goffish/gopher/api/GopherSubGraph.java ravi/Goffish2.6/gopher/code/modules/api/src/main/java/edu/usc/goffish/gopher/api/GopherSubGraph.java
+--- goffish-2.6/gopher/code/modules/api/src/main/java/edu/usc/goffish/gopher/api/GopherSubGraph.java	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/gopher/code/modules/api/src/main/java/edu/usc/goffish/gopher/api/GopherSubGraph.java	2015-03-23 19:57:21.000000000 +0530
+@@ -18,9 +18,17 @@
+ import edu.usc.goffish.gofs.IPartition;
+ import edu.usc.goffish.gofs.ISubgraph;
+ 
++import java.text.DateFormat;
++import java.text.SimpleDateFormat;
+ import java.util.ArrayList;
++import java.util.Date;
+ import java.util.List;
+ import java.util.Map;
++//import java.util.logging.Logger;
++
++//import java.util.logging.Level;
++//import java.util.logging.Logger;
++import org.slf4j.*;
+ 
+ /**
+  * <class>GopherSubGraph</class>  Provide the Subgraph centric api for Gopher.
+@@ -52,8 +60,47 @@
+ 
+     private boolean messagesSent = false;
+ 
+-
+-
++    /// LOGGER STRUCT ///////////////////////////////////////////////
++    private static Logger logger = LoggerFactory.getLogger("SubGraphLogger");
++    private static DateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
++    private String logPrefix;	
++    private static final String appLogHeader = "APP,PartitionID,SubgraphID,Iteration,Superstep,Timestamp,DateTime,InfoCode,Values";
++    ////////////////////////////////////////////////////////////////
++    
++	protected void logInfo(String infoCode, Object... info){
++		logger.info(buildLog(infoCode, info).toString());
++	}
++	protected void logDebug(String infoCode, Object... info){
++		logger.debug(buildLog(infoCode, info).toString());
++	}
++	protected void logTrace(String infoCode, Object... info){
++		logger.trace(buildLog(infoCode, info).toString());
++	}
++	protected void logWarn(String infoCode, Object... info){
++		logger.warn(buildLog(infoCode, info).toString());
++	}
++	protected void logError(String infoCode, Object... info){
++		logger.error(buildLog(infoCode, info).toString());
++	}
++	protected void logError(String infoCode, String message, Throwable ex){
++		logger.error(buildLog(infoCode, message).toString(), ex);
++	}
++
++	private StringBuffer buildLog(String infoCode, Object... info){
++    	StringBuffer sb = new StringBuffer(logPrefix)
++		.append(iteration)
++		.append(',')
++		.append(superStep)
++		.append(',')
++		.append(System.currentTimeMillis())
++		.append(',')
++		.append(dateFormatter.format(new Date()))
++		.append(infoCode);
++		for(Object i : info) sb.append(',').append(i);
++		return sb;
++	}
++	
++	
+     /**
+      * Initialize the sub-graph by providing partition and sub-graph instances to be used by the subgraph.
+      *
+@@ -70,6 +117,9 @@
+         this.partitions = partitions;
+         this.subgraph = subgraph;
+ 
++        logPrefix = "APP,"+partition.getId() + "," + subgraph.getId() + ",";
++        logger.info(appLogHeader);
++        logInfo("STATE.SG_APP.INIT");
+     }
+ 
+     /**
+@@ -83,6 +133,16 @@
+     public abstract void compute(List<SubGraphMessage> messageList);
+ 
+     /**
++     * This function is called when all the subgraphs has voted to halt
++     * Overwrite this function for writing you result to disk from shared memory data structure
++     * An empty concrete implementation for backward compatibility
++     */
++    
++    public void wrapup(){
++    	/*Empty for backward compatibility*/
++    }
++    
++    /**
+      * User implementation logic goes here.
+      *
+      * @param messageList  list of message indented for
+@@ -107,6 +167,7 @@
+      */
+     public final void voteToHalt() {
+         this.voteToHalt = true;
++        logInfo("STATE.SG_APP.VOTE_HALT");
+     }
+ 
+     /**
+diff -Naur --exclude='.*' goffish-2.6/gopher/code/modules/core/pom.xml ravi/Goffish2.6/gopher/code/modules/core/pom.xml
+--- goffish-2.6/gopher/code/modules/core/pom.xml	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/gopher/code/modules/core/pom.xml	2015-03-23 22:49:25.000000000 +0530
+@@ -38,6 +38,7 @@
+     <packaging>jar</packaging>
+ 
+     <properties>
++		<slf4jVersion>1.7.10</slf4jVersion>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+     </properties>
+ 
+@@ -89,6 +90,22 @@
+             <version>3.8.1</version>
+             <scope>test</scope>
+         </dependency>
++	<dependency>
++				<groupId>org.slf4j</groupId>
++				<artifactId>slf4j-api</artifactId>
++				<version>${slf4jVersion}</version>
++			</dependency>
++<!--				<dependency>
++				<groupId>org.slf4j</groupId>
++				<artifactId>slf4j-simple</artifactId>
++				<version>${slf4jVersion}</version>
++			</dependency>-->
++				<dependency>
++        <groupId>ch.qos.logback</groupId>
++        <artifactId>logback-classic</artifactId>
++        <version>1.1.2</version>
++    </dependency>
++
+         <dependency>
+             <groupId>edu.usc.pgroup.floe</groupId>
+             <artifactId>floe-api</artifactId>
+diff -Naur --exclude='.*' goffish-2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/BSPProcessorPellet.java ravi/Goffish2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/BSPProcessorPellet.java
+--- goffish-2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/BSPProcessorPellet.java	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/BSPProcessorPellet.java	2015-03-29 12:24:34.000000000 +0530
+@@ -23,7 +23,7 @@
+ import edu.usc.goffish.gopher.api.GopherSubGraph;
+ import edu.usc.goffish.gopher.api.SubGraphMessage;
+ import edu.usc.goffish.gopher.bsp.BSPMessage;
+-import edu.usc.goffish.gopher.impl.util.StatLogger;
++//import edu.usc.goffish.gopher.impl.util.StatLogger;
+ import edu.usc.pgroup.floe.api.exception.LandmarkException;
+ import edu.usc.pgroup.floe.api.exception.LandmarkPauseException;
+ import edu.usc.pgroup.floe.api.framework.pelletmodels.BSPPellet;
+@@ -38,11 +38,14 @@
+ import java.net.URI;
+ import java.net.URL;
+ import java.net.URLClassLoader;
++import java.text.DateFormat;
++import java.text.SimpleDateFormat;
+ import java.util.*;
+ import java.util.concurrent.ForkJoinPool;
+ import java.util.concurrent.Semaphore;
+-import java.util.logging.Level;
+-import java.util.logging.Logger;
++//import java.util.logging.Level;
++//import java.util.logging.Logger;
++import org.slf4j.*;
+ 
+ /**
+  * <class>BSPProcessorPellet</class> is a internal class which implements the BSP behaviour using flow.
+@@ -86,7 +89,7 @@
+ 
+     private ForkJoinPool pool;
+ 
+-    private static Logger logger = Logger.getLogger(BSPProcessorPellet.class.getName());
++   // private static Logger logger = Logger.getLogger(BSPProcessorPellet.class.getName());
+ 
+ 
+     private Class implClass;
+@@ -99,13 +102,94 @@
+ 
+     public BSPProcessorPellet() {
+         //StatLogger.getInstance().disable();
+-        System.out.println("****************BSP Processor*****************");
++   //     System.out.println("****************BSP Processor*****************");
+ 
+     }
+ 
+-
++    
++    					////LOGGING STRUCTS ///////////////////////////
++   private static Logger logger = LoggerFactory.getLogger("PartitionLogger");
++   DateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
++   long lastComputeEnd, appComputeDurationSS, appMsgDurationSS, appComputeDuration, appMsgDuration, computeTaskDuration;
++   Object lastComputeEndLock = new Object();
++   Object appMsgDurationSSLock =new Object();
++   
++
++   boolean isInfoLoggingEnabled, isPerfLoggingEnabled, isStateLoggingEnabled;
++	private String infoPrefix = "INFO,NULL,";
++	private String statePrefix = "STATE,NULL,";
++	private String perfPrefix = "PERF,NULL,";
++	
++	private static final String infoLogHeader = "INFO,PartitionID,Iteration,Superstep,Timestamp,DateTime,InfoCode,Values";
++	private static final String stateLogHeader = "STATE,PartitionID,Iteration,Superstep,Timestamp,DateTime,StateCode,Details";
++	private static final String perfLogHeader = "PERF,PartitionID,Iteration,Superstep,Timestamp,DateTime,PerfCode,[SubgraphID],[StartTimestampMS],[EndTimestampMS],DurationMS";
++
++   private void logInfo(Object... info){
++   	StringBuffer sb = new StringBuffer(infoPrefix)
++		.append(currentIteration)
++		.append(',')
++		.append(currentSuperStep)
++		.append(',')
++		.append(System.currentTimeMillis())
++		.append(',')
++		.append(dateFormatter.format(new Date()));
++		for(Object i : info) sb.append(',').append(i);
++   	logger.debug(sb.toString());
++   }
++
++   private void logState(String state){
++		logger.info(new StringBuffer(statePrefix)
++				.append(currentIteration).append(',')
++				.append(currentSuperStep).append(',')
++				.append(System.currentTimeMillis()).append(',')
++				.append(dateFormatter.format(new Date()))
++				.append(',').append(state).toString());
++   }
++   
++   
++   private void logPerf(String activity, long startTime, long endTime){
++		logger.trace(new StringBuffer(perfPrefix)
++				.append(currentIteration).append(',')
++				.append(currentSuperStep).append(',')
++				.append(System.currentTimeMillis()).append(',')
++				.append(dateFormatter.format(new Date()))
++				.append(',').append(activity).append(',')
++				.append(startTime).append(',')
++				.append(endTime).append(',')
++				.append(endTime-startTime).toString());
++   }
++   
++   private void logPerf(String activity, long duration){
++		logger.trace(new StringBuffer(perfPrefix).append(',')
++				.append(currentIteration).append(',')
++				.append(currentSuperStep).append(',')
++				.append(System.currentTimeMillis()).append(',')
++				.append(dateFormatter.format(new Date()))
++				.append(',').append(activity).append(',')
++				.append(duration).toString());
++   }
++   ////////////////////////////////////////////////////
++
++
++   
++   
++   
+     public void invoke(FIterator fIterator, FMapEmitter fMapEmitter) {
+-        String currentKey = "";
++ 
++		isPerfLoggingEnabled = logger.isTraceEnabled();
++		isStateLoggingEnabled = logger.isInfoEnabled();
++		isInfoLoggingEnabled = logger.isDebugEnabled();
++
++		if (isInfoLoggingEnabled) logger.debug(infoLogHeader);
++		if (isStateLoggingEnabled) logger.info(stateLogHeader);
++		if (isPerfLoggingEnabled) logger.trace(perfLogHeader);
++
++		if (isStateLoggingEnabled) logState("STATE.PART.START");
++
++    	
++    	
++    	
++    	String currentKey = "";
+         Map<Long, List<SubGraphMessage>> messageGroups = new HashMap<Long, List<SubGraphMessage>>();
+ 
+         while (true) {
+@@ -115,18 +199,22 @@
+ 
+                 if (o instanceof BSPMessage) {
+ 
+-                    long superStepStart = 0;
+-                    long initStart = 0;
++                	long superstepStart, superstepEnd;
++                	
+                     BSPMessage message = (BSPMessage) o;
+-
++                 // message from controller is of type INIT
+                     if (message.getType() == BSPMessage.INIT) {
++                    	
+                         if ((currentSuperStep == 0) && (currentIteration == 0)) {
+-                            StatLogger.getInstance().log("START," + System.currentTimeMillis());
++                            //StatLogger.getInstance().log("START," + System.currentTimeMillis());
+                             partitionStart = System.currentTimeMillis();
+                         }
+-                        initStart = System.currentTimeMillis();
++                        
++                      //  initStart = System.currentTimeMillis();
+ 
+                         String data = new String(message.getData());
++                        if (isStateLoggingEnabled) logState("STATE.PART.INIT");
++                        
+                         //Format
+                         // application_jar,app_class,number_of_processors,graphId,uri
+                         String[] parts = data.split(",");
+@@ -135,30 +223,66 @@
+                         String appClass = parts[1];
+                         String graphId = parts[3];
+                         URI nameNodeUri = URI.create(parts[4]);
++                        
++                        long classLoadStart = System.currentTimeMillis();
+                         implClass = loadClass(appClass, applicationJar);
+-                        init(graphId, nameNodeUri);
+-                        logger.info("Goper initized successfully with " + appClass +
+-                                " for graph : " + graphId);
+-
+-                        StatLogger.getInstance().log("INIT," + partition.getId() + "," +
+-                                (System.currentTimeMillis() - initStart));
++                        long classLoadEnd = System.currentTimeMillis();
++                        if (isStateLoggingEnabled) logState("STATE.PART.APP_LOAD");
++                        
++                        long initStart = System.currentTimeMillis();
++                        //RD : Return type of init method is changed. It is no longer returning partition count.
++                        int partCount = init(graphId, nameNodeUri);
++                        
++                        long initEnd = System.currentTimeMillis();
++                        
++                        
++                        if (isStateLoggingEnabled) logState("STATE.PART.GRAPH_LOAD");
++                        
++                        //RD : partition count is not included TODO :Update  Logger Documentation
++                        if (isInfoLoggingEnabled) 
++    						logInfo(new Object[]{"TOPO.PART","GRAPH_ID", graphId, "APP_CLASS", appClass, 
++    								"PARTITION_COUNT", partCount, "SG_COUNT", subGraphMap.size()});
++                        
++                        
++                        if (isPerfLoggingEnabled) {
++    						logPerf("PERF.PART.GRAPH_LOAD_TIME", initStart, initEnd);
++    						logPerf("PERF.PART.APP_LOAD_TIME", classLoadStart, classLoadEnd);
++    					}
++                        //logger.info("Goper initized successfully with " + appClass + " for graph : " + graphId);
++
++                        
++                        
++                       // StatLogger.getInstance().log("INIT," + partition.getId() + "," + (System.currentTimeMillis() - initStart));
++                        
+                         continue;
+-                    } else if (message.getType() == BSPMessage.HALT) {
+-                        StatLogger.getInstance().log("END," +
+-                                System.currentTimeMillis());
+-                        StatLogger.getInstance().log("PARTITION_TOTAL," + partition.getId() + "," +
+-                                (System.currentTimeMillis() - partitionStart));
+ 
++                    }// message from controller is of type HALT 
++                    else if (message.getType() == BSPMessage.HALT) {
++                   
++                    	//    StatLogger.getInstance().log("END," +System.currentTimeMillis());
++                        //StatLogger.getInstance().log("PARTITION_TOTAL," + partition.getId() + "," +  (System.currentTimeMillis() - partitionStart));
++                    	
++                    	if (isStateLoggingEnabled) logState("STATE.PART.HALT");
+ 
+                         for(ISubgraph subgraph : subGraphMap.values()) {
+ 
+                             int numSlices = ((SliceSubgraph)subgraph).
+                                     getNumInstanceSlicesRead();
+-                            StatLogger.getInstance().log("TOTAL_SLICES," + partition.getId() + "," +
+-                                    + subgraph.getId() + "," + numSlices + "," +
+-                                    System.currentTimeMillis());
++                            //StatLogger.getInstance().log("TOTAL_SLICES," + partition.getId() + "," +  + subgraph.getId() + "," + numSlices + "," + System.currentTimeMillis());
++                            
+ 
+                         }
++                        long wrapupEnd = System.currentTimeMillis();
++                        //TODO : Update Logger documentation : WRAPUP_TASK_TIME
++                        if (isPerfLoggingEnabled) {
++    					//	logPerf("PERF.PART.SG_WRAPUP_TASK_TIME", wrapupStart, wrapupEnd);
++    						logPerf("PERF.PART.TOTAL_WALL_TIME", partitionStart, wrapupEnd);
++    						logPerf("PERF.PART.TOTAL_SG_COMPUTE_TASK_DURATION", computeTaskDuration); // efficiency = TOTAL_SG_COMPUTE_TASK_DURATION / TOTAL_WALL_TIME 
++    						logPerf("PERF.PART.TOTAL_SG_COMPUTE_SEQ_DURATION", appComputeDurationSS);
++    						logPerf("PERF.PART.TOTAL_SG_MSG_SEQ_DURATION", appMsgDurationSS);
++    					}
++                        
++                        
+                         subGraphMap.clear();
+                         subGraphProcessorMap.clear();
+                         currentSuperStep = 0;
+@@ -168,6 +292,14 @@
+                         partList.clear();
+                         partList = new ArrayList<Integer>();
+                         pool.shutdownNow();
++                        
++                        
++                        if (isStateLoggingEnabled) logState("STATE.PART.STOP");
++    					infoPrefix = "INFO,NULL,";
++    					statePrefix = "STATE,NULL,";
++    					perfPrefix = "PERF,NULL,";
++
++                        
+                         continue;
+                     }
+ 
+@@ -177,14 +309,15 @@
+ 
+ 
+ 
+-                        superStepStart =  System.currentTimeMillis();
++                        superstepStart =  System.currentTimeMillis();
+ 
+-                        StatLogger.getInstance().log("INIT_CTRL_START," + partition.getId() +
+-                                "," + (superStepStart - initStart));
++                    //    StatLogger.getInstance().log("INIT_CTRL_START," + partition.getId() +  "," + (superstepStart - initStart));
++                        
+                         currentSuperStep = message.getSuperStep();
+-
+-
+-
++                        if (isStateLoggingEnabled) logState("STATE.PART.START_SS"); //moved after super-step is set
++                        appMsgDurationSS = 0L;
++    					appComputeDurationSS = 0L;
++    					
+                         boolean stepUp = false;
+ 
+                         if (message.isIterative()) {
+@@ -216,6 +349,8 @@
+                         }  else {
+                             if(votedToHalt) {
+ 
++                            	if (isStateLoggingEnabled) logState("STATE.PART.PART_VOTE_HALT");
++                            	
+                                 //Prev step voted to halt,no data messages after the local sync & global sync
+                                 // create sync message for manager & send a vote to halt signal
+                                 BSPMessage bspMessage = new BSPMessage();
+@@ -226,14 +361,25 @@
+                                 bspMessage.setData((""+partition.getId()).getBytes());
+                                 fMapEmitter.emit(controlKey, bspMessage);
+                                 fMapEmitter.flush();
+-                                StatLogger.getInstance().log("LOCAL_SUPER" + "," + partition.getId()
+-                                        + "," + currentSuperStep
+-                                        + "," + (System.currentTimeMillis()-superStepStart));
++                                
++                                superstepEnd = System.currentTimeMillis();
++                                if (isStateLoggingEnabled) logState("STATE.PART.END_SS");
++
++        						if (isPerfLoggingEnabled) {
++        							logPerf("ALL_SG_COMPUTE_TASKS", 0);
++        							logPerf("PERF.PART.SS_WALL_TIME", superstepStart, superstepEnd);
++        						}						
++
++                                //StatLogger.getInstance().log("LOCAL_SUPER" + "," + partition.getId() + "," + currentSuperStep + "," + (System.currentTimeMillis()-superstepStart));
+                                 continue;
+ 
+                             }
+ 
+                         }
++                        
++                        if (isStateLoggingEnabled) logState("STATE.PART.DO_COMPUTE");
++                        long computeStart = System.currentTimeMillis();
++                        
+                         int scheduled = 0;
+                         long superSComputeS = System.currentTimeMillis();
+                         while (subgraphIter.hasNext()) {
+@@ -261,9 +407,7 @@
+ 
+                         // wait for all scheduled tasks to complete
+                         semaphore.acquire(scheduled);
+-                        StatLogger.getInstance().log("SUPER_STEP_COMPUTE," + partition.getId() + "," +
+-                                partition.getId() +"," + (System.currentTimeMillis() - superSComputeS) + "," +
+-                                currentSuperStep + "," + currentIteration);
++                        //StatLogger.getInstance().log("SUPER_STEP_COMPUTE," + partition.getId() + "," + partition.getId() +"," + (System.currentTimeMillis() - superSComputeS) + "," + currentSuperStep + "," + currentIteration);
+                         // create sync message for manager
+                         BSPMessage bspMessage = new BSPMessage();
+                         bspMessage.setSuperStep(currentSuperStep);
+@@ -271,6 +415,9 @@
+                         bspMessage.setKey(controlKey);
+                         bspMessage.setData((""+partition.getId()).getBytes());
+ 
++                        long computeEnd = System.currentTimeMillis();
++                        
++                        
+                         boolean halt = true;
+ 
+                         for (GopherSubGraph processor : subGraphProcessorMap.values()) {
+@@ -294,9 +441,10 @@
+ 
+ 
+                         if (halt) {
+-
+-
+-                            votedToHalt = true;
++                        	
++                        	votedToHalt = true;
++                        	logState("STATE.PART.SG_VOTE_HALT");
++                        	
+                         }  else {
+ 
+                             //
+@@ -312,10 +460,26 @@
+ 
+                         fMapEmitter.emit(controlKey, bspMessage);
+                         fMapEmitter.flush();
+-                        StatLogger.getInstance().log("LOCAL_SUPER" + "," + partition.getId()+ "," +
+-                                currentSuperStep + "," +
+-                                (System.currentTimeMillis()-superStepStart));
+-
++                        //  StatLogger.getInstance().log("LOCAL_SUPER" + "," + partition.getId()+ "," + currentSuperStep + "," + (System.currentTimeMillis()-superstepStart));
++                        superstepEnd = System.currentTimeMillis();
++                        
++    					if (isStateLoggingEnabled) logState("STATE.PART.END_SS");
++
++    					if (isPerfLoggingEnabled) {
++    						logPerf("PERF.PART.SG_COMPUTE_TASK_TIME", computeStart, computeEnd);
++    						logPerf("PERF.PART.SG_LEAD_COMPUTE_TIME", computeStart, lastComputeEnd);
++    						logPerf("PERF.PART.SG_TRAIL_MSG_TIME",lastComputeEnd, computeEnd);
++    						logPerf("PERF.PART.SS_WALL_TIME", superstepStart, superstepEnd);
++    						logPerf("PERF.PART.SG_COMPUTE_SEQ_DURATION", appComputeDurationSS);
++    						logPerf("PERF.PART.SG_MSG_SEQ_DURATION", appMsgDurationSS);
++    						appComputeDuration += appComputeDurationSS;
++    						appMsgDuration += appMsgDurationSS;
++    						computeTaskDuration += (computeEnd- computeStart);
++    					}						
++                        
++                        
++                        
++                        
+                     } else {  // Handle a data message that arrived from workers
+ 
+                         currentKey = message.getKey();
+@@ -363,7 +527,8 @@
+                         }
+                     }
+                 } else { // o not BSPMessage
+-                    logger.severe("Unknown message type (not BSP message}:" + o);
++                  //  logger.severe("Unknown message type (not BSP message}:" + o);
++                	logger.error("Unknown message type (not BSP message}:" + o);
+                 }
+ 
+ 
+@@ -411,29 +576,33 @@
+             }
+             return clazz;
+         } catch (Exception e) {
+-            logger.log(Level.SEVERE, "Exception at class loading", e);
++        	logger.error("Exception at class loading", e);
+             throw new RuntimeException(e);
+         }
+     }
+ 
+ 
+-    private void init(String graphId, URI uri) {
++    private int init(String graphId, URI uri) {
+         INameNode nameNode = new RemoteNameNode(uri);
++        int partCount = 0;
+         try {
+             for (URI u : nameNode.getDataNodes()) {
+                 if (URIHelper.isLocalURI(u)) {
+                     dataNode = DataNode.create(u);
+                     IntCollection partitions = dataNode.getLocalPartitions(graphId);
+                     int partId = partitions.iterator().nextInt();
+-                    long loadS = System.currentTimeMillis();
++                  //  long loadS = System.currentTimeMillis();
+                     partition = dataNode.loadLocalPartition(graphId, partId);
+-                    StatLogger.getInstance().log("PARTITION_LOAD," + partition.getId() + "," +
+-                            (System.currentTimeMillis() - loadS));
++                    //StatLogger.getInstance().log("PARTITION_LOAD," + partition.getId() + "," + (System.currentTimeMillis() - loadS));
+ 
+                     for (int pid : nameNode.getPartitionDirectory().getPartitions(graphId)) {
+ 
+                         this.partList.add(pid);
++                        partCount++;
+                     }
++					infoPrefix = "INFO,"+partition.getId() + ",";
++					statePrefix = "STATE,"+partition.getId() + ",";
++					perfPrefix = "PERF,"+partition.getId() + ",";
+                     break;
+                 }
+             }
+@@ -445,20 +614,27 @@
+             }
+ 
+ 
+-            long loadS = System.currentTimeMillis();
++            //long loadS = System.currentTimeMillis();
+ 
+-            StatLogger.getInstance().log("#SUBGRAPHS," + partition.getId() +","+ partition.size());
++            //StatLogger.getInstance().log("#SUBGRAPHS," + partition.getId() +","+ partition.size());
+             for (ISubgraph subgraph : partition) {
+                 subGraphMap.put(subgraph.getId(), subgraph);
+ 
+                 for (ITemplateVertex rv : subgraph.remoteVertices()) {
+                     subgraphToPartitionMap.put(rv.getRemoteSubgraphId(), rv.getRemotePartitionId());
+                 }
++                if (isInfoLoggingEnabled) 
++					logInfo(new Object[]{"TOPO.SG", "SG_ID", subgraph.getId(), 
++							"SG_V", subgraph.numVertices(), // TODO: rename subgraph.numVertices() as vertexCount()  
++							"SG_E", subgraph.numEdges(), 
++							"SG_RV", subgraph.numRemoteVertices()
++						});
++
+             }
+ 
+-            StatLogger.getInstance().log("#SUBGRAPHS_GOFS," + partition.getId() +","+ subGraphMap.size());
+-            StatLogger.getInstance().log("SUB_PART_MAP," + partition.getId() + "," +
+-                    (System.currentTimeMillis() - loadS));
++            //StatLogger.getInstance().log("#SUBGRAPHS_GOFS," + partition.getId() +","+ subGraphMap.size());
++            //StatLogger.getInstance().log("SUB_PART_MAP," + partition.getId() + "," +
++            //        (System.currentTimeMillis() - loadS));
+ 
+ 
+             int concurrentSubGraphSlots;
+@@ -477,6 +653,7 @@
+         } catch (IOException e) {
+             throw new RuntimeException(e);
+         }
++		return partCount;
+ 
+ 
+     }
+@@ -524,6 +701,12 @@
+ 
+         @Override
+         public void run() {
++        	long appComputeStart = 0, appComputeEnd = 0, msgStart = 0, msgEnd = 0, taskComputeStart = System.currentTimeMillis(), taskComputeEnd;
++        	int msgRecved = 0, msgSent = 0;
++        	
++        	msgRecved = messages.size();
++        	
++
+             try {
+                 // initialize processor
+                 Map<Long, List<SubGraphMessage>> outBuffer = new HashMap<Long, List<SubGraphMessage>>();
+@@ -541,8 +724,8 @@
+                 // call compute, as long as it did not halt previously and it has no new messages
+                 if (!(processor.isVoteToHalt() && messages.isEmpty()) || stepUp) {
+                     processor.setVoteToHalt(false);
+-                    long st = System.currentTimeMillis();
+-
++                   // long st = System.currentTimeMillis();
++			 appComputeStart = System.currentTimeMillis();
+                     try {
+                         if (stepUp && reduce) {
+                             processor.reduce(processor.getReduceList());
+@@ -556,10 +739,16 @@
+                         e.printStackTrace();
+                         System.out.println(e);
+ 
++                    }finally {
++                		appComputeEnd = System.currentTimeMillis();
++                    	synchronized(lastComputeEndLock) {
++                    		lastComputeEnd = appComputeEnd;
++                    		appComputeDurationSS += (appComputeEnd - appComputeStart);
++                    	}
+                     }
+-                    StatLogger.getInstance().log("COMPUTE," + partition.getId() + "," +
+-                            subgraph.getId() +"," + (System.currentTimeMillis() - st) + "," +
+-                            currentSuperStep + "," + currentIteration);
++                    //StatLogger.getInstance().log("COMPUTE," + partition.getId() + "," +
++                    //        subgraph.getId() +"," + (System.currentTimeMillis() - st) + "," +
++                    //        currentSuperStep + "," + currentIteration);
+                 }
+ 
+ 
+@@ -567,7 +756,7 @@
+                     Iterator<Long> longIt = outBuffer.keySet().iterator();
+                     while (longIt.hasNext()) {
+                         long partId = longIt.next();
+-
++                        msgStart = System.currentTimeMillis();
+                         if (partId != GopherSubGraph.SUBGRAPH_LIST_KEY) {
+                             for (SubGraphMessage m : outBuffer.get(partId)) {
+                                 byte[] data = BitConverter.getBytes(m);
+@@ -577,7 +766,7 @@
+                                 bspMessage.setKey("" + partId);
+                                 bspMessage.setData(data);
+                                 emitter.emit("" + partId, bspMessage);
+-
++                                msgSent++;
+ 
+                             }
+                             //emitter.flush();
+@@ -596,17 +785,29 @@
+                                 long targetPartitionId = subgraphToPartitionMap.get(remoteSubgraphId);
+ 
+                                 emitter.emit("" + targetPartitionId, bspMessage);
+-
++                                msgSent++;
+ 
+                             }
+                          //   emitter.flush();
+ 
+                         }
+                     }
++                    msgEnd = System.currentTimeMillis();
++                    synchronized(appMsgDurationSSLock) {
++                		appMsgDurationSS += (msgEnd - msgStart);
++                	}
+                 }
+ 
+                 outBuffer.clear();
+             } finally {
++            	taskComputeEnd = System.currentTimeMillis();
++				if (isPerfLoggingEnabled) {
++					logPerf(new StringBuffer("PERF.SG.TASK_TIME").append(",").append(subgraph.getId()).toString(), taskComputeStart, taskComputeEnd);
++					logPerf(new StringBuffer("PERF.SG.COMPUTE_TIME").append(",").append(subgraph.getId()).toString(), appComputeStart, appComputeEnd);
++					logPerf(new StringBuffer("PERF.SG.MSG_TIME").append(",").append(subgraph.getId()).toString(), msgStart, msgEnd);
++					logPerf(new StringBuffer("PERF.SG.RECV_MSG_COUNT").append(",").append(subgraph.getId()).toString(), msgRecved);
++					logPerf(new StringBuffer("PERF.SG.SEND_MSG_COUNT").append(",").append(subgraph.getId()).toString(), msgSent);
++				}
+                 // signal to BSPProcessor that this task is completed
+                 semaphore.release();
+             }
+diff -Naur --exclude='.*' goffish-2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/ControlPellet.java ravi/Goffish2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/ControlPellet.java
+--- goffish-2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/ControlPellet.java	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/ControlPellet.java	2015-03-23 23:10:17.000000000 +0530
+@@ -27,15 +27,18 @@
+ import java.io.File;
+ import java.io.FileInputStream;
+ import java.io.IOException;
++import java.text.DateFormat;
++import java.text.SimpleDateFormat;
++import java.util.Date;
+ import java.util.Properties;
+-import java.util.logging.Logger;
++import org.slf4j.*;
+ 
+ /**
+  * <class>ControlPellet</class> coordinates the BSP super steps
+  */
+ public class ControlPellet implements StreamInStreamOutPellet {
+ 
+-    private static Logger logger = Logger.getLogger(ControlPellet.class.getName());
++    //private static Logger logger = Logger.getLogger(ControlPellet.class.getName());
+ 
+     private int numberOfProcessors = -1;
+ 
+@@ -54,23 +57,98 @@
+     private long lastIterationTime;
+ 
+     private long appInitTime;
+-
++    private long appEndTime;
++    
+     private enum State {
+         halt,init,running
+     }
+ 
+     private State currentState = State.halt;
+ 
++    //// LOGGING STRUCTS ///////////////////////////
++    private static Logger logger = LoggerFactory.getLogger("GraphLogger");
++
++    private static final DateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
++	long graphStart = System.currentTimeMillis();
++    long lastComputeEnd, appComputeDurationSS, appMsgDurationSS, appComputeDuration, appMsgDuration, computeTaskDuration;
++
++    boolean isInfoLoggingEnabled, isPerfLoggingEnabled, isStateLoggingEnabled;
++	private static final String infoPrefix = "INFO,CONTROLLER,";
++	private static final String statePrefix = "STATE,CONTROLLER,";
++	private static final String perfPrefix = "PERF,CONTROLLER,";
++	
++	private static final String infoLogHeader = "INFO,CONTROLLER,Iteration,Superstep,Timestamp,DateTime,InfoCode,Values";
++	private static final String stateLogHeader = "STATE,CONTROLLER,Iteration,Superstep,Timestamp,DateTime,StateCode,[PartitionID]";
++	private static final String perfLogHeader = "PERF,CONTROLLER,Iteration,Superstep,Timestamp,DateTime,PerfCode,[PartitionID],[StartTimestampMS],[EndTimestampMS],DurationMS";
++
++    private void logInfo(Object... info){
++    	StringBuffer sb = new StringBuffer(infoPrefix)
++		.append(currentIteration).append(',')
++		.append(currentSuperStep).append(',')
++		.append(System.currentTimeMillis())
++		.append(',')
++		.append(dateFormatter.format(new Date()));
++		for(Object i : info) sb.append(',').append(i);
++    	logger.debug(sb.toString());
++    }
++
++    private void logState(String state){
++		logger.info(new StringBuffer(statePrefix)
++				.append(currentIteration).append(',')
++				.append(currentSuperStep).append(',')
++				.append(System.currentTimeMillis()).append(',')
++				.append(dateFormatter.format(new Date()))
++				.append(',').append(state).toString());
++    }
++    
++    
++    private void logPerf(String activity, long startTime, long endTime){
++		logger.trace(new StringBuffer(perfPrefix)
++				.append(currentIteration).append(',')
++				.append(currentSuperStep).append(',')
++				.append(System.currentTimeMillis()).append(',')
++				.append(dateFormatter.format(new Date()))
++				.append(',').append(activity).append(',')
++				.append(startTime).append(',')
++				.append(endTime).append(',')
++				.append(endTime-startTime).toString());
++    }
++    
++    private void logPerf(String activity, long duration){
++		logger.trace(new StringBuffer(perfPrefix).append(',')
++				.append(currentIteration).append(',')
++				.append(currentSuperStep)
++				.append(System.currentTimeMillis()).append(',')
++				.append(dateFormatter.format(new Date()))
++				.append(',').append(activity).append(',')
++				.append(duration).toString());
++    }
++    ////////////////////////////////////////////////////
++    
+ 
+     public ControlPellet() {
+-        //StatLogger.getInstance().disable();
++    	isPerfLoggingEnabled = logger.isTraceEnabled();
++		isStateLoggingEnabled = logger.isInfoEnabled();
++		isInfoLoggingEnabled = logger.isDebugEnabled();
++
++		if (isInfoLoggingEnabled) logger.debug(infoLogHeader);
++
++		if (isStateLoggingEnabled) logger.info(stateLogHeader);
++
++		if (isPerfLoggingEnabled) logger.trace(perfLogHeader);
++
++		if (isStateLoggingEnabled) logState("STATE.CTRL.START");
++
++    	//StatLogger.getInstance().disable();
+     }
+ 
+     public void invoke(FIterator fIterator, FEmitter fEmitter, StateObject stateObject) {
+         //   boolean isHalt = false;
+         int haltVotes = 0;
+         int syncMessageCount = 0;
+-
++        long[] partSSEnd = null, partTotalDuration= null;
++        long graphSSStart=0, graphStart=0;
++        
+         while (true) {
+             try {
+                 Object o = fIterator.next();
+@@ -79,7 +157,7 @@
+                 if (o == null) {
+                 	// TODO:YS: You may want to log a warning since this could cause an infinite noop loop if fIterator misbehaves
+                     //CW : done
+-                    logger.warning("Contoller received an Empty message!");
++                    logger.warn("Contoller received an Empty message!");
+                     continue;
+                 }
+ 
+@@ -90,23 +168,32 @@
+                     if (msg.getType() == BSPMessage.INIT) {
+ 
+                         if(currentState != State.halt) {
+-                            logger.severe("Invalid Message received : " + new String(msg.getData())
++                            logger.error("Invalid Message received : " + new String(msg.getData())
+                                     + " Control Pellet is in an Invalid state " + currentState);
+ 
+                             continue;
+                         }
+ 
++                        graphStart = System.currentTimeMillis();
++    					if (isStateLoggingEnabled) logState("STATE.CTRL.INIT");
++
+                         appInitTime = System.currentTimeMillis();
+                         String data = new String(msg.getData());
+                         //Format
+                         // application_jar,app_class,number_of_processors,graphId,url
+                         String[] parts = data.split(",");
+                         numberOfProcessors = Integer.parseInt(parts[2]);
++                        partSSEnd = new long[numberOfProcessors];
++    					partTotalDuration = new long[numberOfProcessors];
++    	
+                         currentState = State.init;
+ 
+                         currentSuperStep =0;
+                         currentIteration = 0;
+                         fEmitter.emit(msg); // YS: Do we emit (broadcast) this message to all processors?    CW : yes
++                        graphSSStart = System.currentTimeMillis();
++    					if (isInfoLoggingEnabled)  logInfo(new Object[]{"TOPO.CTRL","PARTITION_COUNT", numberOfProcessors,"INIT_MSG_PAYLOAD",data});
++    					
+                         continue;
+                     } else if (msg.getType() == BSPMessage.DATA) {
+                         /**
+@@ -114,11 +201,11 @@
+                          * Processor pellets.
+                          */
+                         if(currentState != State.init) {
+-                            logger.severe("Invalid Message received : " + new String(msg.getData())
++                            logger.error("Invalid Message received : " + new String(msg.getData())
+                                     + " Control Pellet is in an Invalid state " + currentState);
+                             continue;
+                         }
+-
++                        if (isStateLoggingEnabled) logState("STATE.CTRL.CLIENT_ARGS");
+                         fEmitter.emit(msg);
+                         // TODO:YS: Do we need a continue here? CW: Yes. good catch.
+                         continue;
+@@ -131,13 +218,16 @@
+                         }
+ 
+                         if(currentState != State.running) {
+-                            logger.severe("Invalid Message received : " + new String(msg.getData())
++                            logger.error("Invalid Message received : " + new String(msg.getData())
+                                     + " Control Pellet is in an Invalid state " + currentState);
+                             continue;
+                         }
+-
++                        
++                        if (isStateLoggingEnabled) logState("STATE.CTRL.INIT_ITER");
++                        
+                         if(msg.isIterative()) {
+                             isIterative = true;
++                        
+                             if(msg.getNumberOfIterations() <0) {
+                                 numberOfIterations = Integer.MAX_VALUE;
+                             } else {
+@@ -146,16 +236,16 @@
+ 
+                         }
+ 
+-                        StatLogger.getInstance().log("CTRL_INIT," + (System.currentTimeMillis() -appInitTime ));
++                        //StatLogger.getInstance().log("CTRL_INIT," + (System.currentTimeMillis() -appInitTime ));
+ 
+-                        StatLogger.getInstance().log("CTRL_START," + System.currentTimeMillis());
+-                        lastIterationTime = lastSuperStepTime = System.currentTimeMillis();
++                        //StatLogger.getInstance().log("CTRL_START," + System.currentTimeMillis());
++                        //lastIterationTime = lastSuperStepTime = System.currentTimeMillis();
+                         fEmitter.emit(msg);
+                         continue;
+                     }
+ 
+-                    System.out.println("BSPCTRL current SS :" + currentSuperStep + " MSG SS" +
+-                            msg.getSuperStep() + " Iteration " + msg.getIteration() + " VOTE : " + msg.isVoteToHalt() + " from : " + new String(msg.getData()));
++                    //System.out.println("BSPCTRL current SS :" + currentSuperStep + " MSG SS" +
++                      //      msg.getSuperStep() + " Iteration " + msg.getIteration() + " VOTE : " + msg.isVoteToHalt() + " from : " + new String(msg.getData()));
+                     int superStep = msg.getSuperStep();
+ 
+ 
+@@ -167,43 +257,91 @@
+ 
+                     if (superStep == currentSuperStep) {
+                         syncMessageCount++;
++                        int srcPartId = new Integer(new String(msg.getData()));
++                        if (isStateLoggingEnabled) logState("STATE.CTRL.PART_END_SS,"+srcPartId);
++                        partSSEnd[srcPartId-1] =  System.currentTimeMillis();
++                        
++                        
+                         if (msg.isVoteToHalt()) {
+-                            System.out.println("*********************Control got vote to halt #" +
+-                                    haltVotes + " ******************************");
++                        	if (isStateLoggingEnabled) logState("STATE.CTRL.PART_VOTE_HALT,"+srcPartId+","+(haltVotes+1));
++                        	
++                        	//System.out.println("*********************Control got vote to halt #" +
++                              //      haltVotes + " ******************************");
+                             if (++haltVotes == numberOfProcessors) {
+-
++                            	
++                            	if (isStateLoggingEnabled) logState("STATE.CTRL.VOTE_HALT");
++                            	
++                            	long graphEnd = System.currentTimeMillis();
++                            	
+                                 if (!isIterative) {
+-                                    System.out.println("**********************Control got ALL vote to halts. Halting...************************");
+-                                    StatLogger.getInstance().log("CTRL_END," +
+-                                            System.currentTimeMillis());
+-                                    StatLogger.getInstance().log("TOTAL," +
+-                                            (System.currentTimeMillis() - appInitTime));
+-                                    BSPMessage message = new BSPMessage();
+-                                    message.setType(BSPMessage.HALT);
+-                                    fEmitter.emit(message);
+-                                    continue;
++                      
++                                //	System.out.println("**********************Control got ALL vote to halts. Halting...************************");
++                                    
++                                //	StatLogger.getInstance().log("CTRL_END," +
++                                //            System.currentTimeMillis());
++                                    
++                                //	StatLogger.getInstance().log("TOTAL," +
++                                //            (System.currentTimeMillis() - appInitTime));
++                                    
++                                	BSPMessage message = new BSPMessage();
++                                    
++                                	message.setType(BSPMessage.HALT);
++                                    
++                                	fEmitter.emit(message);
++                                
++                                    // print per partition SS & total duration; graph SS & total duration
++                                	if (isPerfLoggingEnabled) {
++                                		for(int i=0; i<numberOfProcessors;i++) {
++                                			logPerf("PERF.CTRL.PART_SS_TIME,"+(i+1), graphSSStart, partSSEnd[i]);
++                                			partTotalDuration[i] += (partSSEnd[i]-graphSSStart);
++                                			partSSEnd[i] = 0;
++                                			logPerf("PERF.CTRL.PART_TOTAL_TIME,"+(i+1), partTotalDuration[i]);
++                                		}
++                                		logPerf("PERF.CTRL.SS_TIME", graphSSStart, graphEnd);
++                            			logPerf("PERF.CTRL.TOTAL_TIME", graphStart, graphEnd);
++                                	}
++                                
++                                	
++                                	continue;
++                                
+                                 } else {
+ 
+                                     long duration = System.currentTimeMillis() - lastIterationTime;
+ 
+-                                    StatLogger.getInstance().log("ITERATION," + currentIteration +
+-                                            "," + duration);
++                                  //  StatLogger.getInstance().log("ITERATION," + currentIteration +
++                                  //          "," + duration);
+ 
+                                     if (currentIteration <= numberOfIterations) {
+-                                        System.out.println("**********************Iteration " + currentIteration + " Done *****************");
++                                      //  System.out.println("**********************Iteration " + currentIteration + " Done *****************");
+                                         currentIteration++;
+                                         currentSuperStep = -1;
++                                        if (isStateLoggingEnabled) logState("STATE.CTRL.START_ITER");
++                                    //TODO: update logging    
+                                     } else {
+ 
+-                                        System.out.println("All " + numberOfIterations + " Iterations are done! Halting");
+-                                        StatLogger.getInstance().log("CTRL_END," +
+-                                                System.currentTimeMillis());
+-                                        StatLogger.getInstance().log("TOTAL," +
+-                                                (System.currentTimeMillis() - appInitTime));
++                                     //   System.out.println("All " + numberOfIterations + " Iterations are done! Halting");
++                                     //   StatLogger.getInstance().log("CTRL_END," +
++                                     //           System.currentTimeMillis());
++                                     //   StatLogger.getInstance().log("TOTAL," +
++                                      //          (System.currentTimeMillis() - appInitTime));
+                                         BSPMessage message = new BSPMessage();
+                                         message.setType(BSPMessage.HALT);
+                                         fEmitter.emit(message);
++                                        
++                                        if (isPerfLoggingEnabled) {
++                                    		for(int i=0; i<numberOfProcessors;i++) {
++                                    			logPerf("PERF.CTRL.PART_SS_TIME,"+(i+1), graphSSStart, partSSEnd[i]);
++                                    			partTotalDuration[i] += (partSSEnd[i]-graphSSStart);
++                                    			partSSEnd[i] = 0;
++                                    			logPerf("PERF.CTRL.PART_TOTAL_TIME,"+(i+1), partTotalDuration[i]);
++                                    		}
++                                    		logPerf("PERF.CTRL.SS_TIME", graphSSStart, graphEnd);
++                                			logPerf("PERF.CTRL.TOTAL_TIME", graphStart, graphEnd);
++                                    	}
++                                        
+                                         continue;
++                                        
++                                        
+                                     }
+ 
+                                 }
+@@ -211,9 +349,13 @@
+                         }
+ 
+                         if (syncMessageCount == numberOfProcessors) {
+-                            long duration = System.currentTimeMillis() - lastSuperStepTime;
+-                            lastSuperStepTime = System.currentTimeMillis();
+-                            StatLogger.getInstance().log("SUPER," + (currentSuperStep + 1)  + "," + duration);
++                        	
++                        	if (isStateLoggingEnabled) logState("STATE.CTRL.END_SS");
++                        	long graphEnd = System.currentTimeMillis();
++                        	
++                            //long duration = System.currentTimeMillis() - lastSuperStepTime;
++                            //lastSuperStepTime = System.currentTimeMillis();
++                            ///StatLogger.getInstance().log("SUPER," + (currentSuperStep + 1)  + "," + duration);
+ 
+                             // send async message to all
+                             BSPMessage barrierMessage = new BSPMessage();
+@@ -225,21 +367,35 @@
+                             if(currentIteration > numberOfIterations) {
+                                 reduce = true;
+                                 barrierMessage.setReduce(true);
++                                
+                             }
+                             fEmitter.emit(barrierMessage);
+ 
++                            if (isStateLoggingEnabled) logState("STATE.CTRL.START_SS"); // FIXME: STATE.CTRL.START_SS is not printed for SS0 
++                            // log per partition SS duration; graph SS duration
++                        	if (isPerfLoggingEnabled) {
++                        		for(int i=0; i<numberOfProcessors;i++) {
++                        			logPerf("PERF.CTRL.PART_SS_TIME,"+(i+1), graphSSStart, partSSEnd[i]);
++                        			partTotalDuration[i] += (partSSEnd[i]-graphSSStart);
++                        			partSSEnd[i] = 0;
++                        		}
++                        		logPerf("PERF.CTRL.SS_TIME", graphSSStart, graphEnd);
++                        	}
++                        	
++                        	graphSSStart = System.currentTimeMillis();
++
+                             // reset counters
+                             haltVotes = 0;
+                             syncMessageCount = 0;
+                         }
+ 
+                     } else {
+-                        logger.severe("Unexpected BSP Control Message. Invalid superstep seen: " + superStep + " when expecting superstep: " + currentSuperStep);
++                        logger.error("Unexpected BSP Control Message. Invalid superstep seen: " + superStep + " when expecting superstep: " + currentSuperStep);
+                         throw new RuntimeException("Unexpected Control Message. Invalid superstep seen: " + superStep + " when expecting superstep: " + currentSuperStep);
+                     }
+ 
+                 } else { // not BSP message 
+-                    logger.severe("Unexpected Message not of BSP Message type: " + o);
++                    logger.error("Unexpected Message not of BSP Message type: " + o);
+                 }
+             } catch (LandmarkException e) {
+                 e.printStackTrace();
+diff -Naur --exclude='.*' goffish-2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/client/DeploymentTool.java ravi/Goffish2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/client/DeploymentTool.java
+--- goffish-2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/client/DeploymentTool.java	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/gopher/code/modules/core/src/main/java/edu/usc/goffish/gopher/impl/client/DeploymentTool.java	2015-03-23 19:40:56.000000000 +0530
+@@ -42,6 +42,8 @@
+ import java.net.URI;
+ import java.util.Iterator;
+ import java.util.List;
++import java.net.URL;
++import java.net.URLClassLoader;
+ 
+ public class DeploymentTool {
+ 
+@@ -66,6 +68,18 @@
+     public void setup(String gofsConfig, String managerHost, String coordinatorHost, boolean persist) throws
+             IOException, ConfigurationException {
+ 
++    	
++        ClassLoader cl = ClassLoader.getSystemClassLoader();
++        
++        System.out.println("PRINTING CLASSPATH");
++        URL[] urls = ((URLClassLoader)cl).getURLs();
++ 
++        for(URL url: urls){
++        	System.out.println("PRINTING CLASSPATH"+ " " +url.getFile());
++        }
++    	
++    	
++    	
+         int numberOfProcessors = 0;
+ 
+         PropertiesConfiguration gofs = new PropertiesConfiguration(gofsConfig);
+diff -Naur --exclude='.*' goffish-2.6/gopher/code/modules/deployment/server/src/main/assembly/bin.xml ravi/Goffish2.6/gopher/code/modules/deployment/server/src/main/assembly/bin.xml
+--- goffish-2.6/gopher/code/modules/deployment/server/src/main/assembly/bin.xml	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/gopher/code/modules/deployment/server/src/main/assembly/bin.xml	2015-03-23 18:44:38.000000000 +0530
+@@ -31,6 +31,7 @@
+             <outputDirectory>gopher-server/bin</outputDirectory>
+             <includes>
+                 <include>container.sh</include>
++                <include>logback.xml</include>
+                 <include>coordinator.sh</include>
+                 <include>manager.sh</include>
+                 <include>kill-gopher.sh</include>
+diff -Naur --exclude='.*' goffish-2.6/gopher/code/modules/deployment/server/src/main/bin/container.sh ravi/Goffish2.6/gopher/code/modules/deployment/server/src/main/bin/container.sh
+--- goffish-2.6/gopher/code/modules/deployment/server/src/main/bin/container.sh	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/gopher/code/modules/deployment/server/src/main/bin/container.sh	2015-03-23 19:41:32.000000000 +0530
+@@ -26,8 +26,11 @@
+ LOCALCLASSPATH=`echo lib/*.jar | tr ' ' ':'`:$LOCALCLASSPATH
+ LOCALCLASSPATH=`echo lib/sigar-bin/lib/*.jar | tr ' ' ':'`:$LOCALCLASSPATH
+ 
+-JAVA_OPTS=
+-# JAVA_OPTS="-Dlog=:WARNING $JAVA_OPTS"
++#JAVA_OPTS=
++#JAVA_OPTS=" -Xms4g -Xmx31g"
++#JAVA_OPTS="-Dlog=:WARNING $JAVA_OPTS"
++#JAVA_OPTS="-Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG $JAVA_OPTS"
++JAVA_OPTS="-Dlogback.configurationFile=bin/logback.xml $JAVA_OPTS"
+ 
+ if [ -z "$JAVA_HOME" ] ; then
+   JAVA=`/usr/bin/which java`
+diff -Naur --exclude='.*' goffish-2.6/gopher/code/modules/deployment/server/src/main/bin/logback.xml ravi/Goffish2.6/gopher/code/modules/deployment/server/src/main/bin/logback.xml
+--- goffish-2.6/gopher/code/modules/deployment/server/src/main/bin/logback.xml	1970-01-01 05:30:00.000000000 +0530
++++ ravi/Goffish2.6/gopher/code/modules/deployment/server/src/main/bin/logback.xml	2015-03-23 23:23:16.000000000 +0530
+@@ -0,0 +1,52 @@
++<!-- 
++	<dependency>
++        <groupId>ch.qos.logback</groupId>
++        <artifactId>logback-classic</artifactId>
++        <version>1.1.2</version>
++    </dependency>
++	
++-Dlogback.configurationFile=/path/to/logback.xml -->
++<configuration scan="false"> 
++
++  <appender name="DEFAULT_FILE" class="ch.qos.logback.core.FileAppender"> 
++	<file>container.log</file>
++	<encoder>
++		<pattern>%d %-5level [%thread] %logger{0}: %msg%n</pattern>
++		<immediateFlush>true</immediateFlush>
++	</encoder> 
++  </appender>
++  <appender name="SG_FILE" class="ch.qos.logback.core.FileAppender"> 
++	<file>subgraph.log</file>
++	<encoder>
++		<pattern>%msg%n</pattern>
++		<immediateFlush>true</immediateFlush>
++	</encoder> 
++  </appender>
++  <appender name="PART_FILE" class="ch.qos.logback.core.FileAppender"> 
++	<file>partition.log</file>
++	<encoder>
++		<pattern>%msg%n</pattern>
++		<immediateFlush>true</immediateFlush>
++	</encoder> 
++  </appender>
++  <appender name="GRAPH_FILE" class="ch.qos.logback.core.FileAppender"> 
++	<file>graph.log</file>
++	<encoder>
++		<pattern>%msg%n</pattern>
++		<immediateFlush>true</immediateFlush>
++	</encoder> 
++  </appender>
++  
++  <logger name="SubGraphLogger" level="TRACE">
++      <appender-ref ref="SG_FILE" />
++  </logger>
++  <logger name="PartitionLogger" level="TRACE">
++      <appender-ref ref="PART_FILE" />
++  </logger>
++  <logger name="GraphLogger" level="TRACE">
++      <appender-ref ref="GRAPH_FILE" />
++  </logger>
++  <root level="TRACE">
++    <appender-ref ref="DEFAULT_FILE" />
++  </root>
++</configuration>
+diff -Naur --exclude='.*' goffish-2.6/install/confdata.pyc ravi/Goffish2.6/install/confdata.pyc
+--- goffish-2.6/install/confdata.pyc	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/install/confdata.pyc	2015-03-23 19:22:15.000000000 +0530
+@@ -1,22 +1,20 @@
+-—Ú
+-√˛Tc           @   sh   d  d k  Z  d  d k Z d d
+- d Ñ  É  YZ d d d Ñ  É  YZ d d d Ñ  É  YZ d d d	 Ñ  É  YZ d S(   iˇˇˇˇNt   Pathc           B   sG   e  Z d  Ñ  Z d Ñ  Z e d Ñ  É Z e d Ñ  É Z e d Ñ  É Z RS(   c         C   s:   | |  _  | |  _ | |  _ | |  _ | |  _ | |  _ d  S(   N(   t   bint   datat   clientt   configt   sourcet   sample(   t   selfR   R   R   R   R   R   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt   __init__   s    					c         C   s   d |  i  d |  i S(   Ns   Bin: s    Data: (   R   R   (   R   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt   __str__#   s    c         C   sô   | GH|  i  | d É } |  i  | d É } |  i  | d É } |  i  | d É } |  i  | d É } |  i  | d É } | G| GH|  | | | | | | É S(   NR   R   R   R   R   R   (   t   clean(   t   clst	   path_dictR   R   R   R   R   R   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt	   from_dict&   s    	c   	      C   sô  d } d } d } d } d } d } | i  d É o |  i | d É } n |  i | d É } | i  d É o |  i | d É } n |  i | d É } | i  d É o |  i | d É } n |  i | d É } | i  d É o |  i | d É } n |  i | d É } | i  d É o |  i | d É } n |  i | d É } | i  d É o |  i | d É } n |  i | d É } |  | | | | | | É S(   Nt    R   R   R   R   R   R   (   t   has_keyR
+-   (	   R   R   t   default_dictR   R   R   R   R   R   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt   from_dict_and_default3   s2    c         C   s5   t  |  É d j o |  d d j o	 |  d  Sn |  S(   Ni    iˇˇˇˇt   /(   t   len(   t   path(    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR
+-   ]   s    (	   t   __name__t
++Û
++˚$	Uc           @   sh   d  d l  Z  d  d l Z d d
++ d Ñ  É  YZ d d d Ñ  É  YZ d d d Ñ  É  YZ d d d	 Ñ  É  YZ d S(   iˇˇˇˇNt   Pathc           B   sG   e  Z d  Ñ  Z d Ñ  Z e d Ñ  É Z e d Ñ  É Z e d Ñ  É Z RS(   c         C   s:   | |  _  | |  _ | |  _ | |  _ | |  _ | |  _ d  S(   N(   t   bint   datat   clientt   configt   sourcet   sample(   t   selfR   R   R   R   R   R   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt   __init__   s    					c         C   s   d |  j  d |  j S(   Ns   Bin: s    Data: (   R   R   (   R   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt   __str__#   s    c         C   sô   | GH|  j  | d É } |  j  | d É } |  j  | d É } |  j  | d É } |  j  | d É } |  j  | d É } | G| GH|  | | | | | | É S(   NR   R   R   R   R   R   (   t   clean(   t   clst	   path_dictR   R   R   R   R   R   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt	   from_dict&   s    	c   	      C   sç  d } d } d } d } d } d } | j  d É rI |  j | d É } n |  j | d É } | j  d É rÅ |  j | d É } n |  j | d É } | j  d É rπ |  j | d É } n |  j | d É } | j  d É rÒ |  j | d É } n |  j | d É } | j  d É r)|  j | d É } n |  j | d É } | j  d É ra|  j | d É } n |  j | d É } |  | | | | | | É S(   Nt    R   R   R   R   R   R   (   t   has_keyR
++   (	   R   R   t   default_dictR   R   R   R   R   R   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt   from_dict_and_default3   s2    c         C   s1   t  |  É d k r- |  d d k r- |  d  Sn  |  S(   Ni    iˇˇˇˇt   /(   t   len(   t   path(    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR
++   ]   s    (	   t   __name__t
+    __module__R   R	   t   classmethodR   R   t   staticmethodR
+-   (    (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR       s
+-   		*t   Machinec           B   s,   e  Z d  Ñ  Z d Ñ  Z d Ñ  Z d Ñ  Z RS(   c         C   s   | |  _  | |  _ d  S(   N(   t   m_idt   address(   R   R   R   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR   e   s    	c         C   s   | |  _  d  S(   N(   R   (   R   R   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt   add_pathi   s    c         C   s   | |  _  d  S(   N(   t   username(   R   R   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt   add_usernamel   s    c         C   sJ   d |  i  } | d |  i 7} | d |  i 7} | d t |  i É 7} | S(   Ns   Id : s
+-    address: s    user: s    path: (   R   R   R   t   strR   (   R   t   machine_desc(    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR	   o   s
+-    (   R   R   R   R   R   R	   (    (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR   d   s   			t   Sourcec           B   s,   e  Z d  Z d Z d Z d Ñ  Z d Ñ  Z RS(   i   i   i   c         C   s   | |  _  | |  _ d  S(   N(   t   source_typeR   (   R   R"   R   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR   z   s    	c         C   s@   h t  i d 6t  i d 6t  i d 6| d |  _ | d |  _ d  S(   Nt   svnt   webt   filet   typet   url(   R!   t   SVNt   WEBt   FILER"   R   (   R   t   source_info_dict(    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR   ~   s    
++   (    (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR       s
++   		*t   Machinec           B   s,   e  Z d  Ñ  Z d Ñ  Z d Ñ  Z d Ñ  Z RS(   c         C   s   | |  _  | |  _ d  S(   N(   t   m_idt   address(   R   R   R   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR   e   s    	c         C   s   | |  _  d  S(   N(   R   (   R   R   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt   add_pathi   s    c         C   s   | |  _  d  S(   N(   t   username(   R   R   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt   add_usernamel   s    c         C   sJ   d |  j  } | d |  j 7} | d |  j 7} | d t |  j É 7} | S(   Ns   Id : s
++    address: s    user: s    path: (   R   R   R   t   strR   (   R   t   machine_desc(    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR	   o   s
++    (   R   R   R   R   R   R	   (    (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR   d   s   			t   Sourcec           B   s,   e  Z d  Z d Z d Z d Ñ  Z d Ñ  Z RS(   i   i   i   c         C   s   | |  _  | |  _ d  S(   N(   t   source_typeR   (   R   R"   R   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR   z   s    	c         C   s@   i t  j d 6t  j d 6t  j d 6| d |  _ | d |  _ d  S(   Nt   svnt   webt   filet   typet   url(   R!   t   SVNt   WEBt   FILER"   R   (   R   t   source_info_dict(    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR   ~   s    
+ 
+ 
+-(   R   R   R(   R)   R*   R   (    (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR!   v   s
+-   	t   GoffishConfc           B   s5   e  Z d  Ñ  Z d Ñ  Z d Ñ  Z d Ñ  Z d Ñ  Z RS(   c         C   sx   | d d } t  | d | d É } | d d } g  } x2 | D]* } t  | d | d É } | | g 7} q@ W| | f S(   Nt   machinest   headnodet   idR   t   nodes(   R   (   R   t   config_dictt   headnode_dictt	   head_nodet   node_arrt   machine_listt   nodet   m(    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt   get_machine_listä   s     c         C   sù   |  i  |  i g } | d } t i | d É } | GHxa | D]Y } | i | i É o3 t i | | i | d É } | GH| i | É q< | i | É q< Wd  S(   Nt   pathst   default(   R5   R3   R    R   R   R   R   R   (   R   R1   t   m_listR   t   default_pathR7   t   p(    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt   add_paths_to_machinesó   s    
+- c         C   st   |  i  |  i g } | d } | d } xF | D]> } | i | i É o | i | | i É q. | i | É q. Wd  S(   NR   R:   (   R5   R3   R   R   R   (   R   R1   R;   t	   user_dictt   default_userR7   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt   add_username_to_machines¶   s    
++(   R   R   R(   R)   R*   R   (    (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR!   v   s
++   	t   GoffishConfc           B   s5   e  Z d  Ñ  Z d Ñ  Z d Ñ  Z d Ñ  Z d Ñ  Z RS(   c         C   sx   | d d } t  | d | d É } | d d } g  } x2 | D]* } t  | d | d É } | | g 7} q@ W| | f S(   Nt   machinest   headnodet   idR   t   nodes(   R   (   R   t   config_dictt   headnode_dictt	   head_nodet   node_arrt   machine_listt   nodet   m(    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt   get_machine_listä   s    c         C   sõ   |  j  |  j g } | d } t j | d É } | GHx_ | D]W } | j | j É rÜ t j | | j | d É } | GH| j | É q< | j | É q< Wd  S(   Nt   pathst   default(   R5   R3   R    R   R   R   R   R   (   R   R1   t   m_listR   t   default_pathR7   t   p(    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt   add_paths_to_machinesó   s    
++c         C   sr   |  j  |  j g } | d } | d } xD | D]< } | j | j É r] | j | | j É q. | j | É q. Wd  S(   NR   R:   (   R5   R3   R   R   R   (   R   R1   R;   t	   user_dictt   default_userR7   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt   add_username_to_machines¶   s    
+ 
+- c         C   sµ   | GHt  i | É } t i | É |  i | É \ |  _ |  _ |  i | É |  i | É |  i GHx |  i D] } | GHqh Wt | d É |  _	 | d d j o t
+- |  _ n
+- t |  _ d  S(   NR   s   common-homet   true(   t   helpert	   read_jsont   pprintR8   R3   R5   R>   RA   R!   R   t   Truet   common_homet   False(   R   t   config_file_nameR1   R7   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR   ¥   s    
+- 	c         C   s   d |  i  d |  i S(   Ns   Machines : s    headnode: (   R5   R3   (   R   (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR	       s    (   R   R   R8   R>   RA   R   R	   (    (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyR,   à   s
+-   				(    (    (    (    (   RC   RE   R    R   R!   R,   (    (    (    s.   /home/ec2-user/goffish-2.6/install/confdata.pyt   <module>   s
++c         C   s≥   | GHt  j | É } t j | É |  j | É \ |  _ |  _ |  j | É |  j | É |  j GHx |  j D] } | GHqh Wt | d É |  _	 | d d k r¶ t
++ |  _ n	 t |  _ d  S(   NR   s   common-homet   true(   t   helpert	   read_jsont   pprintR8   R3   R5   R>   RA   R!   R   t   Truet   common_homet   False(   R   t   config_file_nameR1   R7   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR   ¥   s    	c         C   s   d |  j  d |  j S(   Ns   Machines : s    headnode: (   R5   R3   (   R   (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR	       s    (   R   R   R8   R>   RA   R   R	   (    (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyR,   à   s
++   				(    (    (    (    (   RC   RE   R    R   R!   R,   (    (    (    s3   /home/ravikant/soft/goffish-2.6/install/confdata.pyt   <module>   s
+    J
+\ No newline at end of file
+diff -Naur --exclude='.*' goffish-2.6/install/goffish-conf.json ravi/Goffish2.6/install/goffish-conf.json
+--- goffish-2.6/install/goffish-conf.json	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/install/goffish-conf.json	2015-03-26 13:16:18.000000000 +0530
+@@ -13,21 +13,21 @@
+ 		]
+ 	},
+ 	"username" : {
+-		"default" : "ec2-user"
++		"default" : "ravikant"
+ 	},
+ 	"paths" : {
+ 		"default" : {
+-			"source" : "/home/ec2-user/goffish-deploy/source",
+-			"bin" : "/home/ec2-user/goffish-deploy/bin",
+-			"data" : "/home/ec2-user/goffish-deploy/data",
+-			"client" : "/home/ec2-user/goffish-deploy/client",
+-			"config" : "/home/ec2-user/goffish-deploy/config",
+-			"sample" : "/home/ec2-user/goffish-deploy/sample"
++			"source" : "/home/ravikant/soft/goffish-deploy/source",
++			"bin" : "/home/ravikant/soft/goffish-deploy/bin",
++			"data" : "/home/ravikant/soft/goffish-deploy/data",
++			"client" : "/home/ravikant/soft/goffish-deploy/client",
++			"config" : "/home/ravikant/soft/goffish-deploy/config",
++			"sample" : "/home/ravikant/soft/goffish-deploy/sample"
+ 		}
+ 	},
+ 	"common-home" : "true",
+ 	"source" :{
+ 		"type" : "file",
+-		"url" : "~/goffish-2.6/"
++		"url" : "~/soft/goffish-2.6/"
+ 	}
+ }
+diff -Naur --exclude='.*' goffish-2.6/install/helper.pyc ravi/Goffish2.6/install/helper.pyc
+--- goffish-2.6/install/helper.pyc	2015-04-01 19:00:00.000000000 +0530
++++ ravi/Goffish2.6/install/helper.pyc	2015-03-23 19:22:15.000000000 +0530
+@@ -1,8 +1,8 @@
+-—Ú
+-Æ˛Tc        	   @   së   d  d k  Z  d  d k Z d  d k Z d  d k Z d  d k Z d  d k Z d  d k Z d  d k Z d Ñ  Z d Ñ  Z	 d Ñ  Z
+- d Ñ  Z d Ñ  Z d S(   iˇˇˇˇNc         C   sW   d | d |  GHd } | | d 7} | |  d 7} | d | d 7} | GHt  i | É S(   Ns   Running command on t   @s   ssh t    s   -tt "t   "(   t   ost   system(   t   addresst   usernamet   commandt   ssh_command(    (    s,   /home/ec2-user/goffish-2.6/install/helper.pyt   run_commandT   s    c         C   s_   d | d | d |  GHd } | | d 7} | | d |  7} | d | 7} | GHt  i | É S(   Ns   Sending files    to R    s   scp R   t   :(   R   R   (   R   R   t   filenamet   remote_patht   scp_command(    (    s,   /home/ec2-user/goffish-2.6/install/helper.pyt   copy_file_to_remote`   s    c         C   s_   d | d | d |  GHd } | | d |  7} | d | 7} | d | 7} | GHt  i | É S(   Ns   Getting files    from R    s   scp R
++Û
++¸$	Uc           @   së   d  d l  Z  d  d l Z d  d l Z d  d l Z d  d l Z d  d l Z d  d l Z d  d l Z d Ñ  Z d Ñ  Z	 d Ñ  Z
++ d Ñ  Z d Ñ  Z d S(   iˇˇˇˇNc         C   sW   d | d |  GHd } | | d 7} | |  d 7} | d | d 7} | GHt  j | É S(   Ns   Running command on t   @s   ssh t    s   -tt "t   "(   t   ost   system(   t   addresst   usernamet   commandt   ssh_command(    (    s1   /home/ravikant/soft/goffish-2.6/install/helper.pyt   run_commandT   s    c         C   s_   d | d | d |  GHd } | | d 7} | | d |  7} | d | 7} | GHt  j | É S(   Ns   Sending files    to R    s   scp R   t   :(   R   R   (   R   R   t   filenamet   remote_patht   scp_command(    (    s1   /home/ravikant/soft/goffish-2.6/install/helper.pyt   copy_file_to_remote`   s    c         C   s_   d | d | d |  GHd } | | d |  7} | d | 7} | d | 7} | GHt  j | É S(   Ns   Getting files    from R    s   scp R
+    R   (   R   R   (   R   R   t   remote_file_patht
+-   local_nameR   (    (    s,   /home/ec2-user/goffish-2.6/install/helper.pyt   copy_file_from_remotel   s    c         C   sL   t  |  d É } d i | i É  i É  É } | GHt i | É } | i É  | S(   Nt   rt    (   t   opent   joint   readt   splitt   jsont   loadst   close(   R   t   ft   fstrt   fdir(    (    s,   /home/ec2-user/goffish-2.6/install/helper.pyt	   read_jsony   s    
+-c         C   s*   t  |  d É } | i | É | i É  | S(   Nt   w(   R   t   writeR   (   R   t   stringR   (    (    s,   /home/ec2-user/goffish-2.6/install/helper.pyt
++   local_nameR   (    (    s1   /home/ravikant/soft/goffish-2.6/install/helper.pyt   copy_file_from_remotel   s    c         C   sL   t  |  d É } d j | j É  j É  É } | GHt j | É } | j É  | S(   Nt   rt    (   t   opent   joint   readt   splitt   jsont   loadst   close(   R   t   ft   fstrt   fdir(    (    s1   /home/ravikant/soft/goffish-2.6/install/helper.pyt	   read_jsony   s    
++c         C   s*   t  |  d É } | j | É | j É  | S(   Nt   w(   R   t   writeR   (   R   t   stringR   (    (    s1   /home/ravikant/soft/goffish-2.6/install/helper.pyt
+    write_fileÇ   s    
+-(   t   argparseR   R   t   globt   copyt   pprintt   syst   confdataR	   R   R   R   R"   (    (    (    s,   /home/ec2-user/goffish-2.6/install/helper.pyt   <module>   s   L					
+\ No newline at end of file
++(   t   argparseR   R   t   globt   copyt   pprintt   syst   confdataR	   R   R   R   R"   (    (    (    s1   /home/ravikant/soft/goffish-2.6/install/helper.pyt   <module>   s   L					
+\ No newline at end of file
